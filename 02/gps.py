@@ -3,6 +3,9 @@ import time
 
 import gps
 
+print(f"[GPS DEBUG] gps module loaded from: {gps.__file__}")
+print(f"[GPS DEBUG] gps attributes: {[a for a in dir(gps) if not a.startswith('_')]}")
+
 
 class GpsReader:
     """Læser GPS-position fra en ublox 7 GPS-modtager via gpsd-tjenesten.
