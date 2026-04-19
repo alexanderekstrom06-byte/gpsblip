@@ -3,7 +3,7 @@ import time
 
 from blink import BlinkController
 from google_maps_api import get_directions, load_properties
-from gps import GpsReader
+from gps_receiver import GpsReader
 
 PROPERTIES_FILE = "application.properties"
 
