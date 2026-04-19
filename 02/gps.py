@@ -1,11 +1,7 @@
 import threading
 import time
 
-try:
-    import gps as _gps_lib
-    GPSD_AVAILABLE = True
-except ImportError:
-    GPSD_AVAILABLE = False
+import gps
 
 
 class GpsReader:
@@ -52,13 +48,9 @@ class GpsReader:
         return False
 
     def _read_loop(self):
-        if not GPSD_AVAILABLE:
-            print("[GPS] WARNING: 'gps' module not found – no position available.")
-            return
-
         while True:
             try:
-                session = _gps_lib.gps(mode=_gps_lib.WATCH_ENABLE)
+                session = gps.gps(mode=gps.WATCH_ENABLE)
                 print("[GPS] Connected to gpsd")
 
                 while True:
