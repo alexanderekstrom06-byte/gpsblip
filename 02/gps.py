@@ -58,10 +58,11 @@ class GpsReader:
 
         while True:
             try:
-                session = _gps_lib.gps(mode=_gps_lib.WATCH_ENABLE | _gps_lib.WATCH_NEWSTYLE)
+                session = _gps_lib.gps(mode=_gps_lib.WATCH_ENABLE)
                 print("[GPS] Connected to gpsd")
 
-                for report in session:
+                while True:
+                    report = session.next()
                     if report["class"] == "TPV":
                         lat = getattr(report, "lat", None)
                         lon = getattr(report, "lon", None)
