@@ -1,5 +1,4 @@
 import unittest
-from unittest.mock import MagicMock
 from gps_sim import GpsSim
 
 class TestGpsSim(unittest.TestCase):

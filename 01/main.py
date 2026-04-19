@@ -59,7 +59,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    properties_path = "application.properties"
+    properties_path = "./01/application.properties"
 
     if not os.path.exists(properties_path):
         print(f"Fejl: Mangler {properties_path}")
