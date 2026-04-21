@@ -28,24 +28,28 @@ class NavState:
 # ---------------------------------------------------------------------------
 # Hjælpefunktioner
 # ---------------------------------------------------------------------------
+METERS_PER_DEGREE = 111_320.0
+DEG_TO_RAD = math.pi / 180.0
 
-def haversine(lat1, lng1, lat2, lng2):
-    """Beregner luftlinjeafstanden i meter mellem to GPS-koordinater (bredde- og længdegrad)."""
-    R = 6_371_000  # Jordens radius i meter
+def distance_to_point(lat, lng, target_lat, target_lng):
+    """
+    Beregner flad afstand i meter mellem nuværende position og et waypoint.
+    Optimeret til Raspberry Pi (ingen unødige objekter eller konverteringer).
+    """
 
-    # Omregn grader til radianer – matematik-funktionerne kræver radianer, ikke grader
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    # Midt-latitude bruges til at korrigere længdegradens afstand
+    mid_lat = (lat + target_lat) * 0.5
 
-    # Beregn forskellen i breddegrad og længdegrad (også i radianer)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lng2 - lng1)
+    # Forskel i koordinater
+    dlat = target_lat - lat
+    dlng = target_lng - lng
 
-    # Haversine-formlen: beregner et mellemresultat der tager højde for jordens krumning
-    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    # Konverter til meter (flad jord-approximation)
+    x = dlng * METERS_PER_DEGREE * math.cos(mid_lat * DEG_TO_RAD)
+    y = dlat * METERS_PER_DEGREE
 
-    # Omregn mellemresultatet til meter langs jordens overflade og returner
-    return 2 * R * math.asin(math.sqrt(a))
-
+    # Euklidisk afstand
+    return math.sqrt(x * x + y * y)
 
 def maneuver_to_direction(maneuver):
     """Oversætter Googles sving-betegnelse til 'left' (venstre), 'right' (højre) eller None (ingen blink)."""
@@ -72,7 +76,7 @@ def navigation_tick(nav_state, gps_reader):
     step = nav_state.steps[nav_state.current_step_index]
     turn_lat = step["end_location"]["lat"]
     turn_lng = step["end_location"]["lng"]
-    dist_to_turn = haversine(lat, lng, turn_lat, turn_lng)
+    dist_to_turn = distance_to_point(lat, lng, turn_lat, turn_lng)
     is_last_step = nav_state.current_step_index >= len(nav_state.steps) - 1
 
     # ---- Er vi fremme ved destinationen? ------------------------------------------------
@@ -108,11 +112,18 @@ def navigation_tick(nav_state, gps_reader):
     else:
         nav_state.blinkDirection = None
 
+    # Vis næste trin hvis det findes
+    next_instruction = ""
+    if nav_state.current_step_index + 1 < len(nav_state.steps):
+        next_step = nav_state.steps[nav_state.current_step_index + 1]
+        next_instruction = f" → Næste: {next_step['instruction']}"
+
     print(
         f"[NAV] Step {nav_state.current_step_index}/{len(nav_state.steps) - 1}: "
         f"{step['instruction']} | "
         f"sving om {dist_to_turn:.0f} m | "
-        f"blink: {nav_state.blinkDirection or '–'}"
+        f"blink: {nav_state.blinkDirection or '–'} |"
+        f"{next_instruction}"
     )
 
 
@@ -155,7 +166,7 @@ def main():
     try:
         while not nav_state.arrived and nav_state.current_step_index < len(nav_state.steps):
             navigation_tick(nav_state, gps_reader)
-            time.sleep(1)
+            time.sleep(0.5)
     except KeyboardInterrupt:
         print("\n[MAIN] Navigation stoppet af bruger.")
     finally:
