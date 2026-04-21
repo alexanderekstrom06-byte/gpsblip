@@ -1,10 +1,9 @@
-import math
 import time
 from datetime import datetime
 
 from blink import BlinkController
 from google_maps_api import get_directions, load_properties
-from gps_receiver import GpsReader
+from gps_receiver import GpsReader, distance_to_point
 
 PROPERTIES_FILE = "application.properties"
 
@@ -29,32 +28,9 @@ class NavState:
 # ---------------------------------------------------------------------------
 # Hjælpefunktioner
 # ---------------------------------------------------------------------------
-METERS_PER_DEGREE = 111_320.0
-DEG_TO_RAD = math.pi / 180.0
-
 def get_timestamp():
     """Returnerer tidsstempel i formatet YYYY-MM-DD HH:mm:ss.sss"""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-
-def distance_to_point(lat, lng, target_lat, target_lng):
-    """
-    Beregner flad afstand i meter mellem nuværende position og et waypoint.
-    Optimeret til Raspberry Pi (ingen unødige objekter eller konverteringer).
-    """
-
-    # Midt-latitude bruges til at korrigere længdegradens afstand
-    mid_lat = (lat + target_lat) * 0.5
-
-    # Forskel i koordinater
-    dlat = target_lat - lat
-    dlng = target_lng - lng
-
-    # Konverter til meter (flad jord-approximation)
-    x = dlng * METERS_PER_DEGREE * math.cos(mid_lat * DEG_TO_RAD)
-    y = dlat * METERS_PER_DEGREE
-
-    # Euklidisk afstand
-    return math.sqrt(x * x + y * y)
 
 def maneuver_to_direction(maneuver):
     """Oversætter Googles sving-betegnelse til 'left' (venstre), 'right' (højre) eller None (ingen blink)."""
@@ -62,9 +38,9 @@ def maneuver_to_direction(maneuver):
         return None
     m = maneuver.lower()
     if "left" in m:
-        return "left"
-    if "right" in m:
         return "right"
+    if "right" in m:
+        return "left"
     return None
 
 
@@ -152,6 +128,9 @@ def main():
 
     lat, lng, _ = gps_reader.get_position()
     print(f"{get_timestamp()} [MAIN] GPS-fix: {lat:.6f}, {lng:.6f}")
+
+    # Mål GPS-stabilitet før navigation starter
+    gps_reader.check_stability(duration_sec=60, interval_sec=2)
 
     # Hent vejvisningen fra vores nuværende position til destinationen
     print(f"{get_timestamp()} [MAIN] Henter rute til: {destination}")

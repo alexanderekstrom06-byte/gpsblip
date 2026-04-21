@@ -1,7 +1,22 @@
+import math
 import threading
 import time
 
 import gps
+
+# Konstanter for afstandsberegning
+_METERS_PER_DEGREE = 111_320.0
+_DEG_TO_RAD = math.pi / 180.0
+
+
+def distance_to_point(lat, lng, target_lat, target_lng):
+    """Beregner flad afstand i meter mellem nuværende position og et waypoint."""
+    mid_lat = (lat + target_lat) * 0.5
+    dlat = target_lat - lat
+    dlng = target_lng - lng
+    x = dlng * _METERS_PER_DEGREE * math.cos(mid_lat * _DEG_TO_RAD)
+    y = dlat * _METERS_PER_DEGREE
+    return math.sqrt(x * x + y * y)
 
 
 class GpsReader:
@@ -46,6 +61,42 @@ class GpsReader:
                 return True
             time.sleep(1)
         return False
+
+    def check_stability(self, duration_sec=60, interval_sec=2):
+        """Måler GPS-stabilitet over tid. Rapporterer afstandsændringer uden at bilen bevæger sig."""
+        from datetime import datetime
+        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} [STABILITY] Måler GPS-stabilitet i {duration_sec} sekunder...")
+
+        measurements = []
+        start_time = time.time()
+
+        while time.time() - start_time < duration_sec:
+            lat, lng, fix = self.get_position()
+            if fix and lat is not None:
+                measurements.append((lat, lng, time.time()))
+            time.sleep(interval_sec)
+
+        if not measurements:
+            print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} [STABILITY] Ingen GPS-data – kan ikke måle stabilitet")
+            return
+
+        # Beregn afstandsændringer mellem successive målinger
+        max_drift = 0.0
+        avg_drift = 0.0
+        drifts = []
+
+        for i in range(1, len(measurements)):
+            prev_lat, prev_lng, _ = measurements[i-1]
+            curr_lat, curr_lng, _ = measurements[i]
+            drift = distance_to_point(prev_lat, prev_lng, curr_lat, curr_lng)
+            drifts.append(drift)
+            max_drift = max(max_drift, drift)
+
+        if drifts:
+            avg_drift = sum(drifts) / len(drifts)
+
+        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} [STABILITY] Målinger: {len(measurements)} | Max drift: {max_drift:.1f}m | Gennemsn: {avg_drift:.1f}m")
+        print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} [STABILITY] GPS virker klar til navigation når drift < 1-2 meter")
 
     def _read_loop(self):
         while True:
