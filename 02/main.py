@@ -1,5 +1,6 @@
 import math
 import time
+from datetime import datetime
 
 from blink import BlinkController
 from google_maps_api import get_directions, load_properties
@@ -30,6 +31,10 @@ class NavState:
 # ---------------------------------------------------------------------------
 METERS_PER_DEGREE = 111_320.0
 DEG_TO_RAD = math.pi / 180.0
+
+def get_timestamp():
+    """Returnerer tidsstempel i formatet YYYY-MM-DD HH:mm:ss.sss"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 def distance_to_point(lat, lng, target_lat, target_lng):
     """
@@ -70,7 +75,7 @@ def maneuver_to_direction(maneuver):
 def navigation_tick(nav_state, gps_reader):
     lat, lng, fix = gps_reader.get_position()
     if not fix or lat is None:
-        print("[NAV] Waiting for GPS fix…")
+        print(f"{get_timestamp()} [NAV] Waiting for GPS fix…")
         return
 
     step = nav_state.steps[nav_state.current_step_index]
@@ -83,7 +88,7 @@ def navigation_tick(nav_state, gps_reader):
     if is_last_step and dist_to_turn <= ARRIVAL_DISTANCE_M:
         nav_state.arrived = True
         nav_state.blinkDirection = None
-        print("[NAV] Destination reached!")
+        print(f"{get_timestamp()} [NAV] Destination reached!")
         return
 
     # ---- Gem den korteste afstand vi har haft til svinget ---------------------
@@ -102,7 +107,7 @@ def navigation_tick(nav_state, gps_reader):
         nav_state.current_step_index += 1
         if nav_state.current_step_index < len(nav_state.steps):
             nxt = nav_state.steps[nav_state.current_step_index]
-            print(f"[NAV] Step {nav_state.current_step_index}: {nxt['instruction']}")
+            print(f"{get_timestamp()} [NAV] Step {nav_state.current_step_index}: {nxt['instruction']}")
         return
 
     # ---- Skal blinket tændes eller slukkes? -----------------------------------------------
@@ -119,7 +124,7 @@ def navigation_tick(nav_state, gps_reader):
         next_instruction = f" → Næste: {next_step['instruction']}"
 
     print(
-        f"[NAV] Step {nav_state.current_step_index}/{len(nav_state.steps) - 1}: "
+        f"{get_timestamp()} [NAV] Step {nav_state.current_step_index}/{len(nav_state.steps) - 1}: "
         f"{step['instruction']} | "
         f"sving om {dist_to_turn:.1f} m | "
         f"blink: {nav_state.blinkDirection or '–'} |"
@@ -140,22 +145,22 @@ def main():
     gps_reader = GpsReader()
     gps_reader.start()
 
-    print("[MAIN] Venter på GPS-fix…")
+    print(f"{get_timestamp()} [MAIN] Venter på GPS-fix…")
     if not gps_reader.wait_for_fix(timeout=120):
-        print("[MAIN] Fik ikke GPS-fix inden for 2 minutter – afslutter.")
+        print(f"{get_timestamp()} [MAIN] Fik ikke GPS-fix inden for 2 minutter – afslutter.")
         return
 
     lat, lng, _ = gps_reader.get_position()
-    print(f"[MAIN] GPS-fix: {lat:.6f}, {lng:.6f}")
+    print(f"{get_timestamp()} [MAIN] GPS-fix: {lat:.6f}, {lng:.6f}")
 
     # Hent vejvisningen fra vores nuværende position til destinationen
-    print(f"[MAIN] Henter rute til: {destination}")
+    print(f"{get_timestamp()} [MAIN] Henter rute til: {destination}")
     steps = get_directions(api_key, lat, lng, destination)
     if not steps:
-        print("[MAIN] Ingen rute fundet – afslutter.")
+        print(f"{get_timestamp()} [MAIN] Ingen rute fundet – afslutter.")
         return
-    print(f"[MAIN] Rute hentet: {len(steps)} trin")
-    print(f"[MAIN] Første trin: {steps[0]['instruction']}")
+    print(f"{get_timestamp()} [MAIN] Rute hentet: {len(steps)} trin")
+    print(f"{get_timestamp()} [MAIN] Første trin: {steps[0]['instruction']}")
 
     nav_state = NavState()
     nav_state.steps = steps
@@ -168,7 +173,7 @@ def main():
             navigation_tick(nav_state, gps_reader)
             time.sleep(0.5)
     except KeyboardInterrupt:
-        print("\n[MAIN] Navigation stoppet af bruger.")
+        print(f"\n{get_timestamp()} [MAIN] Navigation stoppet af bruger.")
     finally:
         blink.stop()
 
