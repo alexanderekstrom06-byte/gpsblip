@@ -121,7 +121,7 @@ def navigation_tick(nav_state, gps_reader):
     print(
         f"[NAV] Step {nav_state.current_step_index}/{len(nav_state.steps) - 1}: "
         f"{step['instruction']} | "
-        f"sving om {dist_to_turn:.0f} m | "
+        f"sving om {dist_to_turn:.1f} m | "
         f"blink: {nav_state.blinkDirection or '–'} |"
         f"{next_instruction}"
     )
