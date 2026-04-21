@@ -14,15 +14,84 @@ TURN_ENTER_THRESHOLD_M = 20.0   # Vi regner os selv som "ved svinget", når vi e
 ARRIVAL_DISTANCE_M = 10.0       # Vi er fremme, når vi er inden for denne afstand fra destinationen
 
 
-class NavState:
-    """Indeholder alle fælles oplysninger som navigationssløjfen og blinket deler."""
+class NavigationController:
+    """Styrer navigationslogikken: sving-detektion, destination-check og blink-kontrol."""
 
-    def __init__(self):
-        self.steps = []
+    def __init__(self, steps, gps_reader):
+        self.steps = steps
         self.current_step_index = 0
-        self.blinkDirection = None   # Hvilken retning der skal blinkes: None = intet blink, 'left' = venstre, 'right' = højre
         self.arrived = False
-        self._closest_dist = float("inf")  # Den korteste afstand vi hidtil har haft til det næste sving
+        self.blink_direction = None
+        self._closest_dist = float("inf")
+        self._gps = gps_reader
+
+    def tick(self):
+        """Opdaterer navigationstilstanden baseret på nuværende GPS-position."""
+        lat, lng, fix = self._gps.get_position()
+        if not fix or lat is None:
+            print(f"{get_timestamp()} [NAV] Waiting for GPS fix…")
+            return
+
+        step = self.steps[self.current_step_index]
+        dist = distance_to_point(lat, lng, step["end_location"]["lat"], step["end_location"]["lng"])
+
+        if self._check_arrival(dist):
+            return
+        self._update_closest(dist)
+        if self._check_turn_complete(dist):
+            return
+        self._update_blink(dist, step)
+        self._log(dist, step)
+
+    def _check_arrival(self, dist):
+        """Tjekker om vi er nået destinationen."""
+        is_last = self.current_step_index >= len(self.steps) - 1
+        if is_last and dist <= ARRIVAL_DISTANCE_M:
+            self.arrived = True
+            self.blink_direction = None
+            print(f"{get_timestamp()} [NAV] Destination reached!")
+            return True
+        return False
+
+    def _update_closest(self, dist):
+        """Gem den korteste afstand vi har haft til det næste sving."""
+        if dist < self._closest_dist:
+            self._closest_dist = dist
+
+    def _check_turn_complete(self, dist):
+        """Tjekker om vi har drejet og skal til næste trin."""
+        past = (
+            self._closest_dist < TURN_ENTER_THRESHOLD_M
+            and dist > self._closest_dist + TURN_COMPLETE_OVERSHOOT_M
+        )
+        if past:
+            self.blink_direction = None
+            self._closest_dist = float("inf")
+            self.current_step_index += 1
+            if self.current_step_index < len(self.steps):
+                nxt = self.steps[self.current_step_index]
+                print(f"{get_timestamp()} [NAV] Step {self.current_step_index}: {nxt['instruction']}")
+            return True
+        return False
+
+    def _update_blink(self, dist, step):
+        """Opdaterer blink-retning baseret på afstand til sving."""
+        direction = maneuver_to_direction(step["maneuver"])
+        self.blink_direction = direction if direction and dist <= BLINK_START_DISTANCE_M else None
+
+    def _log(self, dist, step):
+        """Logger navigationsstatus til terminalen."""
+        next_instruction = ""
+        if self.current_step_index + 1 < len(self.steps):
+            nxt = self.steps[self.current_step_index + 1]
+            next_instruction = f" → Næste: {nxt['instruction']}"
+        print(
+            f"{get_timestamp()} [NAV] Step {self.current_step_index}/{len(self.steps) - 1}: "
+            f"{step['instruction']} | "
+            f"sving om {dist:.1f} m | "
+            f"blink: {self.blink_direction or '–'} |"
+            f"{next_instruction}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -42,70 +111,6 @@ def maneuver_to_direction(maneuver):
     if "right" in m:
         return "left"
     return None
-
-
-# ---------------------------------------------------------------------------
-# Navigationsopdatering – denne funktion kaldes én gang i sekundet
-# ---------------------------------------------------------------------------
-
-def navigation_tick(nav_state, gps_reader):
-    lat, lng, fix = gps_reader.get_position()
-    if not fix or lat is None:
-        print(f"{get_timestamp()} [NAV] Waiting for GPS fix…")
-        return
-
-    step = nav_state.steps[nav_state.current_step_index]
-    turn_lat = step["end_location"]["lat"]
-    turn_lng = step["end_location"]["lng"]
-    dist_to_turn = distance_to_point(lat, lng, turn_lat, turn_lng)
-    is_last_step = nav_state.current_step_index >= len(nav_state.steps) - 1
-
-    # ---- Er vi fremme ved destinationen? ------------------------------------------------
-    if is_last_step and dist_to_turn <= ARRIVAL_DISTANCE_M:
-        nav_state.arrived = True
-        nav_state.blinkDirection = None
-        print(f"{get_timestamp()} [NAV] Destination reached!")
-        return
-
-    # ---- Gem den korteste afstand vi har haft til svinget ---------------------
-    if dist_to_turn < nav_state._closest_dist:
-        nav_state._closest_dist = dist_to_turn
-
-    # ---- Har vi drejet om hjørnet? --------------------------------------
-    # Hvis vi har været tæt nok på svinget og nu er 3 m forbi det nærmeste punkt, er svinget overstået.
-    past_turn = (
-        nav_state._closest_dist < TURN_ENTER_THRESHOLD_M
-        and dist_to_turn > nav_state._closest_dist + TURN_COMPLETE_OVERSHOOT_M
-    )
-    if past_turn:
-        nav_state.blinkDirection = None
-        nav_state._closest_dist = float("inf")
-        nav_state.current_step_index += 1
-        if nav_state.current_step_index < len(nav_state.steps):
-            nxt = nav_state.steps[nav_state.current_step_index]
-            print(f"{get_timestamp()} [NAV] Step {nav_state.current_step_index}: {nxt['instruction']}")
-        return
-
-    # ---- Skal blinket tændes eller slukkes? -----------------------------------------------
-    direction = maneuver_to_direction(step["maneuver"])
-    if direction and dist_to_turn <= BLINK_START_DISTANCE_M:
-        nav_state.blinkDirection = direction
-    else:
-        nav_state.blinkDirection = None
-
-    # Vis næste trin hvis det findes
-    next_instruction = ""
-    if nav_state.current_step_index + 1 < len(nav_state.steps):
-        next_step = nav_state.steps[nav_state.current_step_index + 1]
-        next_instruction = f" → Næste: {next_step['instruction']}"
-
-    print(
-        f"{get_timestamp()} [NAV] Step {nav_state.current_step_index}/{len(nav_state.steps) - 1}: "
-        f"{step['instruction']} | "
-        f"sving om {dist_to_turn:.1f} m | "
-        f"blink: {nav_state.blinkDirection or '–'} |"
-        f"{next_instruction}"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -141,15 +146,13 @@ def main():
     print(f"{get_timestamp()} [MAIN] Rute hentet: {len(steps)} trin")
     print(f"{get_timestamp()} [MAIN] Første trin: {steps[0]['instruction']}")
 
-    nav_state = NavState()
-    nav_state.steps = steps
-
-    blink = BlinkController(nav_state)
+    nav = NavigationController(steps, gps_reader)
+    blink = BlinkController(nav)
     blink.start()
 
     try:
-        while not nav_state.arrived and nav_state.current_step_index < len(nav_state.steps):
-            navigation_tick(nav_state, gps_reader)
+        while not nav.arrived and nav.current_step_index < len(nav.steps):
+            nav.tick()
             time.sleep(0.5)
     except KeyboardInterrupt:
         print(f"\n{get_timestamp()} [MAIN] Navigation stoppet af bruger.")

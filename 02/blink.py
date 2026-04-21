@@ -16,11 +16,11 @@ except Exception:
 
 
 class BlinkController:
-    """Styrer blinklysene i en separat tråd og holder øje med nav_state.blinkDirection.
+    """Styrer blinklysene i en separat tråd og holder øje med nav_state.blink_direction.
 
-    Så længe blinkDirection er 'left' eller 'right', blinker det tilsvarende lys
+    Så længe blink_direction er 'left' eller 'right', blinker det tilsvarende lys
     hvert halve sekund (1 Hz – samme som et normalt blinklys i en bil).
-    Blinkingen stopper, så snart blinkDirection sættes tilbage til None.
+    Blinkingen stopper, så snart blink_direction sættes tilbage til None.
 
     På Raspberry Pi tændes og slukkes en GPIO-pin.
     På andre computere vises en pil i terminalen i stedet.
@@ -66,7 +66,7 @@ class BlinkController:
         current_direction = None
 
         while self._running:
-            direction = self._nav.blinkDirection
+            direction = self._nav.blink_direction
 
             if direction != current_direction:
                 # Retningen er skiftet – nulstil blink-tilstand og sluk alt
