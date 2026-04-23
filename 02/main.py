@@ -1,4 +1,3 @@
-import json
 import os
 import time
 from datetime import datetime
@@ -77,16 +76,9 @@ class NavigationController:
         return False
 
     def _update_blink(self, dist, step):
-        """Opdaterer blink-retning baseret på afstand til sving."""
-        # Hvis vi er tæt på at afslutte dette trin, blink baseret på NÆSTE trins maneuver
-        next_step = None
-        if dist <= BLINK_START_DISTANCE_M and self.current_step_index + 1 < len(self.steps):
-            next_step = self.steps[self.current_step_index + 1]
-            direction = maneuver_to_direction(next_step["maneuver"])
-        else:
-            direction = maneuver_to_direction(step["maneuver"])
-
-        self.blink_direction = direction if direction else None
+        """Opdaterer blink-retning baseret på afstand til sving ved slutningen af dette trin."""
+        direction = maneuver_to_direction(step["maneuver"])
+        self.blink_direction = direction if direction and dist <= BLINK_START_DISTANCE_M else None
 
     def _log(self, dist, step):
         """Logger navigationsstatus til terminalen."""
@@ -116,9 +108,9 @@ def maneuver_to_direction(maneuver):
         return None
     m = maneuver.lower()
     if "left" in m:
-        return "right"
-    if "right" in m:
         return "left"
+    if "right" in m:
+        return "right"
     return None
 
 
@@ -153,10 +145,6 @@ def main():
     if not steps:
         print(f"{get_timestamp()} [MAIN] Ingen rute fundet – afslutter.")
         return
-
-    # Udskriv API-respons som JSON (kan bruges til debugging)
-    print(f"{get_timestamp()} [MAIN] API-respons (JSON):")
-    print(json.dumps(steps, indent=2, ensure_ascii=False))
 
     total_distance_m = sum(step.get("distance_m", 0) for step in steps)
     print(f"{get_timestamp()} [MAIN] Rute hentet: {len(steps)} trin ({total_distance_m/1000:.1f} km)")
