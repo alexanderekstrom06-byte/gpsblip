@@ -143,8 +143,13 @@ def main():
     if not steps:
         print(f"{get_timestamp()} [MAIN] Ingen rute fundet – afslutter.")
         return
-    print(f"{get_timestamp()} [MAIN] Rute hentet: {len(steps)} trin")
-    print(f"{get_timestamp()} [MAIN] Første trin: {steps[0]['instruction']}")
+    total_distance_m = sum(step.get("distance_m", 0) for step in steps)
+    print(f"{get_timestamp()} [MAIN] Rute hentet: {len(steps)} trin ({total_distance_m/1000:.1f} km)")
+    print(f"{get_timestamp()} [MAIN] Ruteoversigt:")
+    for i, step in enumerate(steps):
+        dist_km = step.get("distance_m", 0) / 1000
+        print(f"{get_timestamp()} [MAIN]   {i}: {step['instruction']} ({dist_km:.1f} km)")
+    print(f"{get_timestamp()} [MAIN]   {len(steps)}: Destination")
 
     nav = NavigationController(steps, gps_reader)
     blink = BlinkController(nav)
