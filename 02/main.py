@@ -1,3 +1,5 @@
+import json
+import os
 import time
 from datetime import datetime
 
@@ -134,8 +136,9 @@ def main():
     lat, lng, _ = gps_reader.get_position()
     print(f"{get_timestamp()} [MAIN] GPS-fix: {lat:.6f}, {lng:.6f}")
 
-    # Mål GPS-stabilitet før navigation starter
-    gps_reader.check_stability(duration_sec=60, interval_sec=2)
+    # Mål GPS-stabilitet før navigation starter (kan springes over med SKIP_GPS_STABILITY=1)
+    if not os.getenv("SKIP_GPS_STABILITY"):
+        gps_reader.check_stability(duration_sec=60, interval_sec=2)
 
     # Hent vejvisningen fra vores nuværende position til destinationen
     print(f"{get_timestamp()} [MAIN] Henter rute til: {destination}")
@@ -143,6 +146,11 @@ def main():
     if not steps:
         print(f"{get_timestamp()} [MAIN] Ingen rute fundet – afslutter.")
         return
+
+    # Udskriv API-respons som JSON (kan bruges til debugging)
+    print(f"{get_timestamp()} [MAIN] API-respons (JSON):")
+    print(json.dumps(steps, indent=2, ensure_ascii=False))
+
     total_distance_m = sum(step.get("distance_m", 0) for step in steps)
     print(f"{get_timestamp()} [MAIN] Rute hentet: {len(steps)} trin ({total_distance_m/1000:.1f} km)")
     print(f"{get_timestamp()} [MAIN] Ruteoversigt:")
