@@ -78,8 +78,15 @@ class NavigationController:
 
     def _update_blink(self, dist, step):
         """Opdaterer blink-retning baseret på afstand til sving."""
-        direction = maneuver_to_direction(step["maneuver"])
-        self.blink_direction = direction if direction and dist <= BLINK_START_DISTANCE_M else None
+        # Hvis vi er tæt på at afslutte dette trin, blink baseret på NÆSTE trins maneuver
+        next_step = None
+        if dist <= BLINK_START_DISTANCE_M and self.current_step_index + 1 < len(self.steps):
+            next_step = self.steps[self.current_step_index + 1]
+            direction = maneuver_to_direction(next_step["maneuver"])
+        else:
+            direction = maneuver_to_direction(step["maneuver"])
+
+        self.blink_direction = direction if direction else None
 
     def _log(self, dist, step):
         """Logger navigationsstatus til terminalen."""
