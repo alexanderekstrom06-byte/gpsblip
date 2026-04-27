@@ -51,10 +51,9 @@ class BlinkController:
         if GPIO_AVAILABLE:
             pin = LEFT_PIN if direction == "left" else RIGHT_PIN
             GPIO.output(pin, GPIO.HIGH if state else GPIO.LOW)
-        else:
-            if state:
-                arrow = "<== VENSTRE" if direction == "left" else "HØJRE ==>"
-                print(f"[BLINK] {arrow}")
+        if state:
+            arrow = "<== VENSTRE" if direction == "left" else "HØJRE ==>"
+            print(f"[BLINK] {arrow}")
 
     def _all_off(self):
         if GPIO_AVAILABLE:
